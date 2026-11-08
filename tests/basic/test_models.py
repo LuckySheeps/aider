@@ -100,7 +100,9 @@ class TestModels(unittest.TestCase):
         ]
         print("Warning messages:", warning_messages)  # Add this line
 
-        self.assertGreaterEqual(mock_io.tool_warning.call_count, 1)  # Expect two warnings
+        self.assertGreaterEqual(
+            mock_io.tool_warning.call_count, 1
+        )  # Expect two warnings
         self.assertTrue(
             any("bogus-model" in msg for msg in warning_messages)
         )  # Check that one of the warnings mentions the bogus model
@@ -203,7 +205,9 @@ class TestModels(unittest.TestCase):
 
         # Test with decimal value
         model.set_thinking_tokens("0.5M")
-        self.assertEqual(model.extra_params["thinking"]["budget_tokens"], 0.5 * 1024 * 1024)
+        self.assertEqual(
+            model.extra_params["thinking"]["budget_tokens"], 0.5 * 1024 * 1024
+        )
 
     @patch("aider.models.check_pip_install_extra")
     def test_check_for_dependencies_bedrock(self, mock_check_pip):
@@ -444,6 +448,7 @@ class TestModels(unittest.TestCase):
             temperature=0,
             num_ctx=expected_ctx,
             timeout=600,
+            tools=[{"googleSearch": {}}],
         )
 
     @patch("aider.models.litellm.completion")
@@ -462,6 +467,7 @@ class TestModels(unittest.TestCase):
             temperature=0,
             num_ctx=4096,
             timeout=600,
+            tools=[{"googleSearch": {}}],
         )
 
     @patch("aider.models.litellm.completion")
@@ -478,6 +484,7 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0,
             timeout=600,
+            tools=[{"googleSearch": {}}],
         )
         self.assertNotIn("num_ctx", mock_completion.call_args.kwargs)
 
@@ -508,6 +515,7 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0,
             timeout=600,  # Default timeout
+            tools=[{"googleSearch": {}}],
         )
 
     @patch("aider.models.litellm.completion")
@@ -523,6 +531,7 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0,
             timeout=300,  # From extra_params
+            tools=[{"googleSearch": {}}],
         )
 
     @patch("aider.models.litellm.completion")
@@ -537,6 +546,7 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0,
             timeout=600,
+            tools=[{"googleSearch": {}}],
         )
 
         # Test use_temperature=False doesn't send temperature
@@ -556,6 +566,7 @@ class TestModels(unittest.TestCase):
             stream=False,
             temperature=0.7,
             timeout=600,
+            tools=[{"googleSearch": {}}],
         )
 
 

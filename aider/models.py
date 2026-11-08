@@ -10,14 +10,13 @@ import time
 from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union
 
 import json5
 import yaml
 from PIL import Image
 
 from aider import __version__
-from aider.dump import dump  # noqa: F401
+from aider.dump import dump
 from aider.llm import litellm
 from aider.openrouter import OpenRouterModelManager
 from aider.sendchat import ensure_alternating_roles, sanity_check_messages
@@ -110,25 +109,25 @@ class ModelSettings:
     # Model class needs to have each of these as well
     name: str
     edit_format: str = "whole"
-    weak_model_name: Optional[str] = None
+    weak_model_name: str | None = None
     use_repo_map: bool = False
     send_undo_reply: bool = False
     lazy: bool = False
     overeager: bool = False
     reminder: str = "user"
     examples_as_sys_msg: bool = False
-    extra_params: Optional[dict] = None
+    extra_params: dict | None = None
     cache_control: bool = False
     caches_by_default: bool = False
     use_system_prompt: bool = True
-    use_temperature: Union[bool, float] = True
+    use_temperature: bool | float = True
     streaming: bool = True
-    editor_model_name: Optional[str] = None
-    editor_edit_format: Optional[str] = None
-    reasoning_tag: Optional[str] = None
-    remove_reasoning: Optional[str] = None  # Deprecated alias for reasoning_tag
-    system_prompt_prefix: Optional[str] = None
-    accepts_settings: Optional[list] = None
+    editor_model_name: str | None = None
+    editor_edit_format: str | None = None
+    reasoning_tag: str | None = None
+    remove_reasoning: str | None = None  # Deprecated alias for reasoning_tag
+    system_prompt_prefix: str | None = None
+    accepts_settings: list | None = None
 
 
 # Load model settings from package resource
@@ -186,7 +185,9 @@ class ModelInfoManager:
             import requests
 
             # Respect the --no-verify-ssl switch
-            response = requests.get(self.MODEL_INFO_URL, timeout=5, verify=self.verify_ssl)
+            response = requests.get(
+                self.MODEL_INFO_URL, timeout=5, verify=self.verify_ssl
+            )
             if response.status_code == 200:
                 self.content = response.json()
                 try:
@@ -274,7 +275,9 @@ class ModelInfoManager:
             import re
 
             if re.search(
-                rf"The model\s*.*{re.escape(url_part)}.* is not available", html, re.IGNORECASE
+                rf"The model\s*.*{re.escape(url_part)}.* is not available",
+                html,
+                re.IGNORECASE,
             ):
                 print(f"\033[91mError: Model '{url_part}' is not available\033[0m")
                 return {}
@@ -285,10 +288,20 @@ class ModelInfoManager:
                 context_size = int(context_str)
             else:
                 context_size = None
-            input_cost_match = re.search(r"\$\s*([\d.]+)\s*/M input tokens", text, re.IGNORECASE)
-            output_cost_match = re.search(r"\$\s*([\d.]+)\s*/M output tokens", text, re.IGNORECASE)
-            input_cost = float(input_cost_match.group(1)) / 1000000 if input_cost_match else None
-            output_cost = float(output_cost_match.group(1)) / 1000000 if output_cost_match else None
+            input_cost_match = re.search(
+                r"\$\s*([\d.]+)\s*/M input tokens", text, re.IGNORECASE
+            )
+            output_cost_match = re.search(
+                r"\$\s*([\d.]+)\s*/M output tokens", text, re.IGNORECASE
+            )
+            input_cost = (
+                float(input_cost_match.group(1)) / 1000000 if input_cost_match else None
+            )
+            output_cost = (
+                float(output_cost_match.group(1)) / 1000000
+                if output_cost_match
+                else None
+            )
             if context_size is None or input_cost is None or output_cost is None:
                 return {}
             params = {
@@ -309,7 +322,12 @@ model_info_manager = ModelInfoManager()
 
 class Model(ModelSettings):
     def __init__(
-        self, model, weak_model=None, editor_model=None, editor_edit_format=None, verbose=False
+        self,
+        model,
+        weak_model=None,
+        editor_model=None,
+        editor_edit_format=None,
+        verbose=False,
     ):
         # Map any alias to its canonical name
         model = MODEL_ALIASES.get(model, model)
@@ -395,7 +413,9 @@ class Model(ModelSettings):
 
             # Deep merge the extra_params dicts
             for key, value in self.extra_model_settings.extra_params.items():
-                if isinstance(value, dict) and isinstance(self.extra_params.get(key), dict):
+                if isinstance(value, dict) and isinstance(
+                    self.extra_params.get(key), dict
+                ):
                     # For nested dicts, merge recursively
                     self.extra_params[key] = {**self.extra_params[key], **value}
                 else:
@@ -416,7 +436,6 @@ class Model(ModelSettings):
             self.edit_format = "diff"
             self.use_repo_map = True
             self.use_temperature = False
-            self.system_prompt_prefix = "Formatting re-enabled. "
             self.system_prompt_prefix = "Formatting re-enabled. "
             if "reasoning_effort" not in self.accepts_settings:
                 self.accepts_settings.append("reasoning_effort")
@@ -600,7 +619,7 @@ class Model(ModelSettings):
         return self.editor_model
 
     def tokenizer(self, text):
-        return litellm.encode(model=self.name, text=text)
+        return litellm.token_counter(model=self.name, text=text)
 
     def token_count(self, messages):
         if type(messages) is list:
@@ -609,9 +628,6 @@ class Model(ModelSettings):
             except Exception as err:
                 print(f"Unable to count tokens: {err}")
                 return 0
-
-        if not self.tokenizer:
-            return
 
         if type(messages) is str:
             msgs = messages
@@ -707,7 +723,8 @@ class Model(ModelSettings):
 
         # If missing AWS credential keys but AWS_PROFILE is set, consider AWS credentials valid
         if res["missing_keys"] and any(
-            key in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"] for key in res["missing_keys"]
+            key in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+            for key in res["missing_keys"]
         ):
             if model.startswith("bedrock/") or model.startswith("us.anthropic."):
                 if os.environ.get("AWS_PROFILE"):
@@ -805,9 +822,14 @@ class Model(ModelSettings):
             if self.name.startswith("openrouter/"):
                 if "extra_body" not in self.extra_params:
                     self.extra_params["extra_body"] = {}
-                self.extra_params["extra_body"]["reasoning"] = {"max_tokens": num_tokens}
+                self.extra_params["extra_body"]["reasoning"] = {
+                    "max_tokens": num_tokens
+                }
             else:
-                self.extra_params["thinking"] = {"type": "enabled", "budget_tokens": num_tokens}
+                self.extra_params["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": num_tokens,
+                }
 
     def get_raw_thinking_tokens(self):
         """Get formatted thinking token budget if available"""
@@ -824,7 +846,8 @@ class Model(ModelSettings):
                     budget = self.extra_params["extra_body"]["reasoning"]["max_tokens"]
             # Check for standard thinking format
             elif (
-                "thinking" in self.extra_params and "budget_tokens" in self.extra_params["thinking"]
+                "thinking" in self.extra_params
+                and "budget_tokens" in self.extra_params["thinking"]
             ):
                 budget = self.extra_params["thinking"]["budget_tokens"]
 
@@ -883,15 +906,15 @@ class Model(ModelSettings):
         openai_api_key = "OPENAI_API_KEY"
 
         if openai_api_key not in os.environ or (
-            int(dict(x.split("=") for x in os.environ[openai_api_key].split(";"))["exp"])
+            int(
+                dict(x.split("=") for x in os.environ[openai_api_key].split(";"))["exp"]
+            )
             < int(datetime.now().timestamp())
         ):
             import requests
 
             class GitHubCopilotTokenError(Exception):
                 """Custom exception for GitHub Copilot token-related errors."""
-
-                pass
 
             # Validate GitHub Copilot token exists
             if "GITHUB_COPILOT_TOKEN" not in os.environ:
@@ -911,8 +934,12 @@ class Model(ModelSettings):
             url = "https://api.github.com/copilot_internal/v2/token"
             res = requests.get(url, headers=headers)
             if res.status_code != 200:
-                safe_headers = {k: v for k, v in headers.items() if k != "Authorization"}
-                token_preview = github_token[:5] + "..." if len(github_token) >= 5 else github_token
+                safe_headers = {
+                    k: v for k, v in headers.items() if k != "Authorization"
+                }
+                token_preview = (
+                    github_token[:5] + "..." if len(github_token) >= 5 else github_token
+                )
                 safe_headers["Authorization"] = f"Bearer {token_preview}"
                 raise GitHubCopilotTokenError(
                     f"GitHub Copilot API request failed (Status: {res.status_code})\n"
@@ -952,7 +979,10 @@ class Model(ModelSettings):
         if functions is not None:
             function = functions[0]
             kwargs["tools"] = [dict(type="function", function=function)]
-            kwargs["tool_choice"] = {"type": "function", "function": {"name": function["name"]}}
+            kwargs["tool_choice"] = {
+                "type": "function",
+                "function": {"name": function["name"]},
+            }
         if self.extra_params:
             kwargs.update(self.extra_params)
         if self.is_ollama() and "num_ctx" not in kwargs:
@@ -979,7 +1009,7 @@ class Model(ModelSettings):
 
             self.github_copilot_token_to_open_ai_key(kwargs["extra_headers"])
 
-        res = litellm.completion(tools=[{"googleSearch": {}}], **kwargs)
+        res = litellm.completion(**kwargs)
         return hash_object, res
 
     def simple_send_with_retries(self, messages):
@@ -1002,7 +1032,11 @@ class Model(ModelSettings):
                 }
 
                 _hash, response = self.send_completion(**kwargs)
-                if not response or not hasattr(response, "choices") or not response.choices:
+                if (
+                    not response
+                    or not hasattr(response, "choices")
+                    or not response.choices
+                ):
                     return None
                 res = response.choices[0].message.content
                 from aider.reasoning_tags import remove_reasoning_content
@@ -1044,14 +1078,17 @@ def register_models(model_settings_fnames):
             for model_settings_dict in model_settings_list:
                 model_settings = ModelSettings(**model_settings_dict)
                 existing_model_settings = next(
-                    (ms for ms in MODEL_SETTINGS if ms.name == model_settings.name), None
+                    (ms for ms in MODEL_SETTINGS if ms.name == model_settings.name),
+                    None,
                 )
 
                 if existing_model_settings:
                     MODEL_SETTINGS.remove(existing_model_settings)
                 MODEL_SETTINGS.append(model_settings)
         except Exception as e:
-            raise Exception(f"Error loading model settings from {model_settings_fname}: {e}")
+            raise Exception(
+                f"Error loading model settings from {model_settings_fname}: {e}"
+            )
         files_loaded.append(model_settings_fname)
 
     return files_loaded
@@ -1128,7 +1165,9 @@ def sanity_check_model(io, model):
 
     elif not model.keys_in_environment:
         show = True
-        io.tool_warning(f"Warning for {model}: Unknown which environment variables are required.")
+        io.tool_warning(
+            f"Warning for {model}: Unknown which environment variables are required."
+        )
 
     # Check for model-specific dependencies
     check_for_dependencies(io, model.name)
